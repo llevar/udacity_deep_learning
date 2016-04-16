@@ -99,7 +99,7 @@ with graph.as_default():
         y_ = tf.placeholder(dtype=tf.float32, shape=[None, 10], name="y-input")
         keep_prob = tf.placeholder(dtype=tf.float32, name="dropout-keep-prob")
         tf.scalar_summary('dropout_keep_probability', keep_prob)
-        reg_rate = tf.placeholder(tf.float32, name="regularization-rate")
+       
         
 
     
@@ -112,26 +112,23 @@ with graph.as_default():
     #layer3, weights_3 = nn_layer(layer2, 300, 50, 'layer3')
     #layer4, weights_4 = nn_layer(layer3, 50, num_labels, 'layer4')
     #y = tf.nn.softmax(layer4, 'predictions')
-
-
-    with tf.name_scope('cross_entropy'):
-        diff = y_ * tf.log(y)
-        with tf.name_scope('total'):
-            cross_entropy = -tf.reduce_sum(diff)
-        with tf.name_scope('normalized'):
-            normalized_cross_entropy = -tf.reduce_mean(diff)
-        tf.scalar_summary('cross entropy', normalized_cross_entropy)
-        
-    #regularizer = reg_rate * (tf.nn.l2_loss(weights_1) + tf.nn.l2_loss(weights_1))
-    regularizer = 0
-    #regularizer = reg_rate * (tf.nn.l2_loss(weights_1) + tf.nn.l2_loss(weights_2) + tf.nn.l2_loss(weights_3) + tf.nn.l2_loss(weights_4))
-    loss_func = cross_entropy + regularizer
-    
     with tf.name_scope('train'):
-        current_step = tf.placeholder(tf.float32, name="current-step")
-        #learning_rate = tf.train.exponential_decay(0.001, current_step, max_steps, 0.96)
+        with tf.name_scope('cross_entropy'):
+            diff = y_ * tf.log(y)
+            with tf.name_scope('total'):
+                cross_entropy = -tf.reduce_sum(diff)
+            with tf.name_scope('normalized'):
+                normalized_cross_entropy = -tf.reduce_mean(diff)
+            tf.scalar_summary('cross entropy', normalized_cross_entropy)
+        
+        reg_rate = tf.placeholder(tf.float32, name="regularization-rate")
+        regularizer = reg_rate * (tf.nn.l2_loss(weights_1) + tf.nn.l2_loss(weights_1))
+        #regularizer = reg_rate * (tf.nn.l2_loss(weights_1) + tf.nn.l2_loss(weights_2) + tf.nn.l2_loss(weights_3) + tf.nn.l2_loss(weights_4))
+        loss_func = cross_entropy + regularizer
+        global_step = tf.Variable(0)
+        learning_rate = tf.train.exponential_decay(0.001, global_step, max_steps, 0.96)
         #learning_rate = learning_rate * math.pow(0.96, float(current_step)/1000)
-        train_step = tf.train.GradientDescentOptimizer(0.001).minimize(loss_func)
+        train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss_func, global_step=global_step)
 
     with tf.name_scope('accuracy'):
         with tf.name_scope('correct_prediction'):
@@ -167,7 +164,7 @@ with  tf.Session(graph=graph) as my_session:
         # The key of the dictionary is the placeholder node of the graph to be fed,
         # and the value is the numpy array to feed to it.
         if step % 500 == 0:
-            feed_dict = {x: valid_dataset, y_: valid_labels, keep_prob: 1, reg_rate: 0.001}
+            feed_dict = {x: valid_dataset, y_: valid_labels, keep_prob: 1}
             summary, my_accuracy = my_session.run([merged, accuracy], feed_dict=feed_dict)
             validation_accuracy.append(my_accuracy)
             validation_epochs.append(step)
@@ -175,7 +172,7 @@ with  tf.Session(graph=graph) as my_session:
             print('Validation accuracy at step %s: %s' % (step, my_accuracy))
             
         else:
-            feed_dict = {x: batch_data, y_: batch_labels, keep_prob: dropout, reg_rate: 0.001, current_step: step}
+            feed_dict = {x: batch_data, y_: batch_labels, keep_prob: dropout, reg_rate: 0.001}
             summary, my_accuracy, _ = my_session.run([merged, accuracy, train_step], feed_dict=feed_dict)
             train_writer.add_summary(summary, step)
             train_accuracy.append(my_accuracy)
